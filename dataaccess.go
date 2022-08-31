@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/motaz/codeutils"
@@ -22,6 +23,7 @@ func GetConfigurationParameter(param, defaultValue string) string {
 var databaseServer, databaseUser, database, password string
 
 func init() {
+
 	databaseServer = GetConfigurationParameter("server", "localhost")
 	databaseUser = GetConfigurationParameter("dbuser", "")
 
@@ -65,11 +67,16 @@ func UpdateLastTime(connection *sql.DB, key string) bool {
 
 }
 
-func UpdatePowerOn(connection *sql.DB, key string) bool {
-	println("Updating poweron for ", key)
-	sqlStatement := "update status set OnTime = now() where officekey = ?"
+func UpdatePowerOn(connection *sql.DB, key string, duration time.Duration) bool {
 
-	_, err := connection.Exec(sqlStatement, key)
+	sqlStatement := "update status set OnTime = now(), LastOffTime=? where officekey = ?"
+
+	LastOffTime := fmt.Sprintf("%v", duration)
+	if strings.Contains(LastOffTime, "m") {
+		LastOffTime = LastOffTime[:strings.Index(LastOffTime, "m")+1]
+
+	}
+	_, err := connection.Exec(sqlStatement, LastOffTime, key)
 	if err == nil {
 
 		return true
@@ -83,11 +90,12 @@ func UpdatePowerOn(connection *sql.DB, key string) bool {
 }
 
 type StatusType struct {
-	ID         int
-	Key        string
-	OfficeName string
-	LastTime   time.Time
-	OnTime     time.Time
+	ID          int
+	Key         string
+	OfficeName  string
+	LastTime    time.Time
+	OnTime      time.Time
+	LastOffTime string
 }
 
 func readTime(aTime sql.NullString) (timeResult time.Time) {
@@ -106,7 +114,7 @@ func readTime(aTime sql.NullString) (timeResult time.Time) {
 
 func GetStatuses(connection *sql.DB) (success bool, result []StatusType) {
 
-	sqlStatement := `SELECT id, officekey, OfficeName, LastTime, OnTime from status`
+	sqlStatement := `SELECT id, officekey, OfficeName, LastTime, OnTime, LastOffTime from status`
 	rows, err := connection.Query(sqlStatement)
 
 	if err != nil {
@@ -119,7 +127,7 @@ func GetStatuses(connection *sql.DB) (success bool, result []StatusType) {
 		for rows.Next() {
 			var lastTime sql.NullString
 			var ontime sql.NullString
-			err = rows.Scan(&aresult.ID, &aresult.Key, &aresult.OfficeName, &lastTime, &ontime)
+			err = rows.Scan(&aresult.ID, &aresult.Key, &aresult.OfficeName, &lastTime, &ontime, &aresult.LastOffTime)
 			if err == nil {
 				aresult.LastTime = readTime(lastTime)
 				aresult.OnTime = readTime(ontime)

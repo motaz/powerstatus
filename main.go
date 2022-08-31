@@ -16,6 +16,7 @@ func main() {
 	http.HandleFunc("/powerstatus/status", displayStatus)
 	http.HandleFunc("/powerstatus", displayStatus)
 	http.HandleFunc("/powerstatus/", displayStatus)
+	http.HandleFunc("/", displayStatus)
 
 	http.ListenAndServe(":10042", nil)
 }

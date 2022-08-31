@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"strings"
 	"time"
 )
 
-const OFFTIME = 25
-const DELAYTIME = 10
+const OFFTIME = 15
+const DELAYTIME = 8
 
 func setStatus(w http.ResponseWriter, r *http.Request) {
 
@@ -22,12 +23,15 @@ func setStatus(w http.ResponseWriter, r *http.Request) {
 
 			if success {
 				println(result.LastTime.String())
-				if hasLongTime(result.LastTime, OFFTIME) {
-					UpdatePowerOn(db, key)
+				longtime, dur := hasLongTime(result.LastTime, OFFTIME)
+				if longtime {
+					UpdatePowerOn(db, key, dur)
+
 				}
 				updated := UpdateLastTime(db, key)
 				if updated {
-					fmt.Fprintln(w, key+", has updated")
+
+					fmt.Fprintln(w, fmt.Sprintf("%s, has updated: %v ", key, dur))
 				}
 
 			}
@@ -36,39 +40,56 @@ func setStatus(w http.ResponseWriter, r *http.Request) {
 
 }
 
+type officestatus struct {
+	ID          int
+	OfficeName  string
+	LastTime    string
+	StatusColor string
+	StatusName  string
+	Since       string
+	OnTime      string
+	LastOffTime string
+}
+
+type displayStatusStruct struct {
+	LastStatus   string
+	OfficeStatus []officestatus
+}
+
 func displayStatus(w http.ResponseWriter, r *http.Request) {
 
+	var status displayStatusStruct
 	r.Header.Set("content-type", "text/html")
-	fmt.Fprintln(w, "<html><head><title>Power Status</title>")
-	fmt.Fprintln(w, `<link href="/powerstatus/static/style.css" rel="stylesheet" type="text/css">`)
-	fmt.Fprintln(w, "<meta http-equiv='refresh' content='30'>")
-	fmt.Fprintln(w, "</head><body>")
-	fmt.Fprintln(w, "<h2>Power Status</h2>")
 	db, err := SQLConnection()
 	if err == nil {
 		defer db.Close()
 		success, list := GetStatuses(db)
-		format := "2006-01-02 15:04:05 MST"
-		fmt.Fprintln(w, "<b>Status at: </b>"+time.Now().Format(format))
+		format := "2006-01-02 15:04:05"
+		status.LastStatus = time.Now().Format(format)
 
 		if success {
-			fmt.Fprintln(w, "<table class=dtable><tr><th>ID</th><th>Office Name</th>")
-			fmt.Fprintln(w, "<th>Last Status</th><th>Status</th><th>Since</th>")
-			fmt.Fprintln(w, "<th>Last On Time</th></tr>")
+			fmt.Fprintf(w, "<html>")
 			for _, item := range list {
-				fmt.Fprintln(w, "<tr>")
-				fmt.Fprintf(w, "<td>%d</td>", item.ID)
-				fmt.Fprintf(w, "<td>%s</td>", item.OfficeName)
-				fmt.Fprintf(w, "<td>%s</td>", item.LastTime.Format(format))
+				var record officestatus
+				record.ID = item.ID
+				record.OfficeName = item.OfficeName
+				record.LastTime = item.LastTime.Format(format)
+				record.LastOffTime = item.LastOffTime
+				if strings.Contains(record.LastOffTime, "h") {
+					record.LastOffTime = strings.ReplaceAll(record.LastOffTime, "h", "h ")
+
+				}
 
 				var statusColor, statusName string
 				var calcTime time.Time
 
-				if hasLongTime(item.LastTime, OFFTIME) {
+				longtime, _ := hasLongTime(item.LastTime, OFFTIME)
+				delayLongtime, _ := hasLongTime(item.LastTime, DELAYTIME)
+				if longtime {
 					statusColor = "red"
 					statusName = "Off"
 					calcTime = item.LastTime
-				} else if hasLongTime(item.LastTime, DELAYTIME) {
+				} else if delayLongtime {
 					statusColor = "yellow"
 					statusName = "Delayed"
 					calcTime = item.OnTime
@@ -77,7 +98,8 @@ func displayStatus(w http.ResponseWriter, r *http.Request) {
 					statusName = "On"
 					calcTime = item.OnTime
 				}
-				fmt.Fprintf(w, "<td bgcolor='%s'>%s</td>", statusColor, statusName)
+				record.StatusColor = statusColor
+				record.StatusName = statusName
 
 				since := fmt.Sprintf("%s", time.Now().Sub(calcTime))
 				if strings.Contains(since, "m") {
@@ -85,22 +107,24 @@ func displayStatus(w http.ResponseWriter, r *http.Request) {
 				}
 				since = strings.ReplaceAll(since, "h", "h ")
 				since = strings.ReplaceAll(since, "d", "d ")
-				fmt.Fprintf(w, "<td>%s</td>", since)
+				record.Since = since
 
-				fmt.Fprintf(w, "<td>%s</td>", item.OnTime.Format(format))
-
-				fmt.Fprintln(w, "</tr>")
+				record.OnTime = item.OnTime.Format(format)
+				status.OfficeStatus = append(status.OfficeStatus, record)
 			}
-			fmt.Fprintln(w, "</table>")
 		}
 	}
-	fmt.Fprintln(w, "</body></html>")
-
+	Template, err := template.ParseFiles("templates/index.html")
+	if err != nil {
+		fmt.Println("Err : ", err)
+	}
+	Template.Execute(w, status)
 }
 
-func hasLongTime(atime time.Time, minutes int) (longtime bool) {
+func hasLongTime(atime time.Time, minutes int) (longtime bool, diff time.Duration) {
 
 	dur := time.Duration(minutes)
+	diff = time.Now().Sub(atime)
 
 	advTime := atime.Add(time.Minute * dur)
 
