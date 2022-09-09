@@ -18,5 +18,8 @@ func main() {
 	http.HandleFunc("/powerstatus/", displayStatus)
 	http.HandleFunc("/", displayStatus)
 
-	http.ListenAndServe(":10042", nil)
+	err := http.ListenAndServe(":10042", nil)
+	if err != nil {
+		fmt.Println("Error while listening: " + err.Error())
+	}
 }

@@ -50,11 +50,11 @@ func SQLConnection() (*sql.DB, error) {
 	return db, err
 }
 
-func UpdateLastTime(connection *sql.DB, key string) bool {
+func UpdateLastTime(connection *sql.DB, key string, boottime time.Time) bool {
 
-	sqlStatement := "update status set LastTime = now() where officekey = ?"
+	sqlStatement := "update status set LastTime = now(), boottime=? where officekey = ?"
 
-	_, err := connection.Exec(sqlStatement, key)
+	_, err := connection.Exec(sqlStatement, boottime, key)
 	if err == nil {
 
 		return true
@@ -95,6 +95,7 @@ type StatusType struct {
 	OfficeName  string
 	LastTime    time.Time
 	OnTime      time.Time
+	BootTime    time.Time
 	LastOffTime string
 }
 
@@ -114,7 +115,8 @@ func readTime(aTime sql.NullString) (timeResult time.Time) {
 
 func GetStatuses(connection *sql.DB) (success bool, result []StatusType) {
 
-	sqlStatement := `SELECT id, officekey, OfficeName, LastTime, OnTime, LastOffTime from status`
+	sqlStatement := `SELECT id, officekey, OfficeName, LastTime, OnTime,
+	                 LastOffTime, BootTime from status`
 	rows, err := connection.Query(sqlStatement)
 
 	if err != nil {
@@ -127,10 +129,13 @@ func GetStatuses(connection *sql.DB) (success bool, result []StatusType) {
 		for rows.Next() {
 			var lastTime sql.NullString
 			var ontime sql.NullString
-			err = rows.Scan(&aresult.ID, &aresult.Key, &aresult.OfficeName, &lastTime, &ontime, &aresult.LastOffTime)
+			var boottime sql.NullString
+			err = rows.Scan(&aresult.ID, &aresult.Key, &aresult.OfficeName, &lastTime, &ontime,
+				&aresult.LastOffTime, &boottime)
 			if err == nil {
 				aresult.LastTime = readTime(lastTime)
 				aresult.OnTime = readTime(ontime)
+				aresult.BootTime = readTime(boottime)
 
 				result = append(result, aresult)
 			} else {

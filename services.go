@@ -22,16 +22,24 @@ func setStatus(w http.ResponseWriter, r *http.Request) {
 			success, result := GetOneStatus(db, key)
 
 			if success {
-				println(result.LastTime.String())
+
 				longtime, dur := hasLongTime(result.LastTime, OFFTIME)
 				if longtime {
 					UpdatePowerOn(db, key, dur)
 
 				}
-				updated := UpdateLastTime(db, key)
+				atime := r.FormValue("atime")
+				boottime := time.Now()
+				if atime != "" {
+					atime = strings.Replace(atime, "_", " ", 1)
+					boottime, _ = time.Parse("2006-01-02 15:04:05", atime)
+
+				}
+				updated := UpdateLastTime(db, key, boottime)
 				if updated {
 
 					fmt.Fprintln(w, fmt.Sprintf("%s, has updated: %v ", key, dur))
+
 				}
 
 			}
@@ -49,6 +57,8 @@ type officestatus struct {
 	Since       string
 	OnTime      string
 	LastOffTime string
+	BootTime    string
+	BootSince   string
 }
 
 type displayStatusStruct struct {
@@ -101,24 +111,32 @@ func displayStatus(w http.ResponseWriter, r *http.Request) {
 				record.StatusColor = statusColor
 				record.StatusName = statusName
 
-				since := fmt.Sprintf("%s", time.Now().Sub(calcTime))
-				if strings.Contains(since, "m") {
-					since = since[:strings.Index(since, "m")+1]
-				}
-				since = strings.ReplaceAll(since, "h", "h ")
-				since = strings.ReplaceAll(since, "d", "d ")
-				record.Since = since
+				record.Since = getTimeDiff(calcTime)
+				record.BootSince = getTimeDiff(item.BootTime)
 
 				record.OnTime = item.OnTime.Format(format)
+				record.BootTime = item.BootTime.Format(format)
 				status.OfficeStatus = append(status.OfficeStatus, record)
+
 			}
 		}
 	}
 	Template, err := template.ParseFiles("templates/index.html")
 	if err != nil {
-		fmt.Println("Err : ", err)
+		fmt.Println("Error loading template : ", err)
 	}
 	Template.Execute(w, status)
+}
+
+func getTimeDiff(atime time.Time) (since string) {
+
+	since = fmt.Sprintf("%s", time.Now().Sub(atime))
+	if strings.Contains(since, "m") {
+		since = since[:strings.Index(since, "m")+1]
+	}
+	since = strings.ReplaceAll(since, "h", "h ")
+	since = strings.ReplaceAll(since, "d", "d ")
+	return
 }
 
 func hasLongTime(atime time.Time, minutes int) (longtime bool, diff time.Duration) {
