@@ -1,0 +1,37 @@
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><title>Power Status</title>
+<link href="/powerstatus/static/style.css" rel="stylesheet" type="text/css">
+<meta http-equiv="refresh" content="30">
+<link rel="icon" href="/powerstatus/static/img/logo.png">
+</head><body style="background-image: url('/powerstatus/static/img/bg.jpg');background-repeat: no-repeat;background-attachment: fixed;background-size: cover;">
+<b style="font-size: 66px;">Power Status</b> <br><br> <b>Status at: </b>{{.LastStatus}}
+<table class="dtable"><tbody>
+<tr>
+ <th>ID</th>
+ <th>Office Name</th>
+ <th>Last Status</th>
+ <th>Status</th>
+ <th>For</th>
+ <th>Last On Time</th>
+ <th>Last Off Time</th>
+ <th>Boot Time</th>
+ <th>For</th>
+</tr>
+{{ range .OfficeStatus}}
+<tr>
+ <td>{{.ID}}</td>
+ <td>{{.OfficeName}}</td>
+ <td>{{.LastTime}}</td>
+ <td bgcolor="{{.StatusColor}}">{{.StatusName}}</td>
+ <td>{{.Since}}</td>
+ <td>{{.OnTime}}</td>
+ <td><font color=#880000>{{.LastOffTime}}</font></td>
+ <td>{{.BootTime}}</td>
+ <td><font color=navy>{{.BootSince}}</font></td>
+ 
+</tr>
+{{end}}
+</tbody></table>
+
+</body></html>
